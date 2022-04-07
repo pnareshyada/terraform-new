@@ -1,0 +1,66 @@
+pipeline {
+    agent any
+
+    stages {
+        stage('Git_checkout') {
+             steps {
+                git branch: 'main', url: 'https://github.com/Naveenyarramaneni/mahesh-k8s.git'
+            }
+        }
+        stage('docker login') {
+            steps {
+                sh 'aws ecr get-login-password --region ap-southeast-1 | sudo docker login --username AWS --password-stdin 274401088258.dkr.ecr.ap-southeast-1.amazonaws.com'
+            }
+        }
+        stage('docker build') {
+            steps {
+		        sh 'sudo docker build -t 274401088258.dkr.ecr.ap-southeast-1.amazonaws.com/aws-eks:$BUILD_NUMBER .'
+                }
+        }
+        stage('docker image') {
+            steps {
+		        sh 'sudo docker push 274401088258.dkr.ecr.ap-southeast-1.amazonaws.com/aws-eks:$BUILD_NUMBER'
+                }
+        }
+        stage('replace build number') {
+            steps {
+		        sh 'sed -i s/number/$BUILD_NUMBER/g k8s/dept.yaml'
+                }
+        }
+        stage('deploy static application to k8s cluster 1. namespace') {
+            steps {
+		        sh 'kubectl apply -f k8s/namespace.yaml'
+                }
+        }
+         stage('2.deployment') {
+            steps {
+		        sh 'kubectl apply -f k8s/dept.yaml'
+                }
+        }
+        stage('3.service') {
+            steps {
+		        sh 'kubectl apply -f k8s/svc.yaml'
+                }
+        }
+        stage('4.ingress') {
+            steps {
+		        sh 'kubectl apply -f k8s/ingress.yaml'
+                }
+        }
+         stage('get ingress enpoint') {
+            steps {
+		        sh 'kubectl get ingress -n static'
+                }
+        }
+        stage('describe ingress pod') {
+            steps {
+		        sh 'kubectl get po -n ingress-nginx'
+                }
+        }
+        stage('check host and path rules') {
+            steps {
+		        sh 'kubectl describe po ingress-nginx-controller-98f46f89d-p9vnq -n ingress-nginx'
+                }
+        }
+    }
+}
